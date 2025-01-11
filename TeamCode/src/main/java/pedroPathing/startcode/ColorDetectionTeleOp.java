@@ -1,17 +1,22 @@
 package pedroPathing.startcode;
 
 import android.graphics.Bitmap;
+import android.graphics.ImageFormat;
+
 import org.opencv.android.Utils;
 
 import com.acmerobotics.dashboard.FtcDashboard;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
+import com.qualcomm.robotcore.hardware.DcMotor;
+
 import org.opencv.core.Mat;
 
 import org.firstinspires.ftc.robotcore.external.hardware.camera.WebcamName;
 import org.openftc.easyopencv.OpenCvCamera;
 import org.openftc.easyopencv.OpenCvCameraFactory;
 import org.openftc.easyopencv.OpenCvCameraRotation;
+import org.openftc.easyopencv.OpenCvWebcam;
 
 @TeleOp(name = "Color Detection TeleOp", group = "TeleOp")
 public class ColorDetectionTeleOp extends OpMode {
@@ -26,6 +31,8 @@ public class ColorDetectionTeleOp extends OpMode {
                 "cameraMonitorViewId", "id", hardwareMap.appContext.getPackageName());
         camera = OpenCvCameraFactory.getInstance().createWebcam(hardwareMap.get(WebcamName.class, "Webcam 1"), cameraMonitorViewId);
 
+       // camera.setCameraSetting(OpenCvCamera.CameraSetting.MJPEG); // Set MJPEG format
+
         // Initialize the pipeline
         detectionPipeline = new DetectionR();
         camera.setPipeline(detectionPipeline);
@@ -36,6 +43,9 @@ public class ColorDetectionTeleOp extends OpMode {
             public void onOpened() {
                 // Start camera streaming
                 camera.startStreaming(1280, 720, OpenCvCameraRotation.UPRIGHT);
+                
+
+
             }
 
             @Override
@@ -53,7 +63,6 @@ public class ColorDetectionTeleOp extends OpMode {
     public void loop() {
         // Convert the latest Mat to a Bitmap
         Bitmap bitmap = matToBitmap(detectionPipeline.getLatestMat());
-
         if (bitmap != null) {
             // Send the converted Bitmap to the FTC Dashboard
             dashboard.sendImage(bitmap);
@@ -62,9 +71,12 @@ public class ColorDetectionTeleOp extends OpMode {
         }
 
         // Display information on the Driver Station telemetry
+        double centerX = detectionPipeline.getCenterX();
+        double centerY = detectionPipeline.getCenterY();
+        telemetry.addData("Object Center (X, Y)", String.format("(%.2f, %.2f)", centerX, centerY));
         telemetry.addData("Frames Processed", detectionPipeline.framesTotal());
-        telemetry.addData("Object Width (px)", detectionPipeline.width);
-        telemetry.addData("Distance (in)", detectionPipeline.getDistance(detectionPipeline.width));
+        telemetry.addData("Object Width (px)", detectionPipeline.getWidth());
+        telemetry.addData("Distance (in)", detectionPipeline.getDistance());
         telemetry.update();
     }
 

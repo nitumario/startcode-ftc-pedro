@@ -1,9 +1,5 @@
 package pedroPathing.startcode;
 
-import android.graphics.Bitmap;
-/*
-Warning: You are using YUY2 image format for this camera. You could increase your maximum FPS from 10 to 30 by choosing MJPEG format. To suppress this warning, explicitly request YUY2 format. OpenCV pipeline leaking memory @ approx. 53MB/sec; 50% RAM currently free. DO NOT create new Mats or re-assign Mat variables inside processFrame()!
- */
 import org.opencv.core.Core;
 import org.opencv.core.Mat;
 import org.opencv.core.MatOfPoint;
@@ -18,68 +14,72 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class DetectionR extends ColorDetectionPipeline {
-    double cX = 0;
-    double cY = 0;
-    double width = 300;
-    public int numberOfFramesProcessed = 0;
-    public static final double objectWidthInRealWorldUnits = 3.75;  // Replace with the actual width of the object in real-world units
-    public static final double focalLength = 728;  // Replace with the focal length of the camera in pixels
-    private Mat latestMat = new Mat(); // Store the latest processed frame
+    private static final double OBJECT_WIDTH_IN_REAL_WORLD_UNITS = 3.75;  // Actual object width
+    private static final double FOCAL_LENGTH = 728;  // Focal length in pixels
+    private static final double MIN_CONTOUR_AREA = 500.0;  // Minimum contour area to consider
+
+    private Mat hsvFrame = new Mat();
+    private Mat yellowMask = new Mat();
+    private Mat kernel = Imgproc.getStructuringElement(Imgproc.MORPH_RECT, new Size(5, 5));
+    private Mat hierarchy = new Mat();
+    private Mat latestMat = new Mat();
+
+    private double cX = 0;
+    private double cY = 0;
+    private double width = 300;
+    private int numberOfFramesProcessed = 0;
 
     @Override
     public Mat processFrame(Mat input) {
-        // Preprocess the frame to detect yellow regions
-        Mat yellowMask = preprocessFrame(input);
-        // Find contours of the detected yellow regions
-        List<MatOfPoint> contours = new ArrayList<>();
-        Mat hierarchy = new Mat();
-        Imgproc.findContours(yellowMask, contours, hierarchy, Imgproc.RETR_EXTERNAL, Imgproc.CHAIN_APPROX_SIMPLE);
+        // Convert to HSV color space
+        Imgproc.cvtColor(input, hsvFrame, Imgproc.COLOR_BGR2HSV);
 
-        // Find the largest yellow contour (blob)
-        MatOfPoint largestContour = findLargestContour(contours);
-
-        if (largestContour != null) {
-            // Draw a red outline around the largest detected object
-            Imgproc.drawContours(input, contours, contours.indexOf(largestContour), new Scalar(0, 0, 255), 2);
-            // Calculate the width of the bounding box
-            width = calculateWidth(largestContour);
-
-            // Display the width next to the label
-            String widthLabel = "Width: " + (int) width + " pixels";
-            Imgproc.putText(input, widthLabel, new Point(cX + 10, cY + 20), Imgproc.FONT_HERSHEY_SIMPLEX, 0.5, new Scalar(0, 255, 0), 2);
-            // Display the Distance
-            String distanceLabel = "Distance: " + String.format("%.2f", getDistance(width)) + " inches";
-            Imgproc.putText(input, distanceLabel, new Point(cX + 10, cY + 60), Imgproc.FONT_HERSHEY_SIMPLEX, 0.5, new Scalar(0, 255, 0), 2);
-            // Calculate the centroid of the largest contour
-            Moments moments = Imgproc.moments(largestContour);
-            cX = moments.get_m10() / moments.get_m00();
-            cY = moments.get_m01() / moments.get_m00();
-
-            // Draw a dot at the centroid
-            String label = "(" + (int) cX + ", " + (int) cY + ")";
-            Imgproc.putText(input, label, new Point(cX + 10, cY), Imgproc.FONT_HERSHEY_COMPLEX, 0.5, new Scalar(0, 255, 0), 2);
-            Imgproc.circle(input, new Point(cX, cY), 5, new Scalar(0, 255, 0), -1);
-        }
-        numberOfFramesProcessed++;
-        latestMat = input.clone(); // Store the latest processed frame
-        return input;
-    }
-
-    private Mat preprocessFrame(Mat frame) {
-        Mat hsvFrame = new Mat();
-        Imgproc.cvtColor(frame, hsvFrame, Imgproc.COLOR_BGR2HSV);
-
+        // Threshold for yellow color
         Scalar lowerYellow = new Scalar(100, 100, 100);
         Scalar upperYellow = new Scalar(180, 255, 255);
-
-        Mat yellowMask = new Mat();
         Core.inRange(hsvFrame, lowerYellow, upperYellow, yellowMask);
 
-        Mat kernel = Imgproc.getStructuringElement(Imgproc.MORPH_RECT, new Size(5, 5));
+        // Morphological transformations to clean up noise
         Imgproc.morphologyEx(yellowMask, yellowMask, Imgproc.MORPH_OPEN, kernel);
         Imgproc.morphologyEx(yellowMask, yellowMask, Imgproc.MORPH_CLOSE, kernel);
 
-        return yellowMask;
+        // Find contours
+        List<MatOfPoint> contours = new ArrayList<>();
+        Imgproc.findContours(yellowMask, contours, hierarchy, Imgproc.RETR_EXTERNAL, Imgproc.CHAIN_APPROX_SIMPLE);
+
+        // Find the largest contour
+        MatOfPoint largestContour = findLargestContour(contours);
+
+        if (largestContour != null) {
+            // Draw contour and calculate centroid
+            Imgproc.drawContours(input, contours, contours.indexOf(largestContour), new Scalar(0, 0, 255), 2);
+
+            Moments moments = Imgproc.moments(largestContour);
+            cX = moments.get_m10() / moments.get_m00();
+            cY = moments.get_m01() / moments.get_m00();
+            Imgproc.circle(input, new Point(cX, cY), 5, new Scalar(0, 255, 0), -1);
+
+            // Calculate bounding box width
+            width = Imgproc.boundingRect(largestContour).width;
+
+            // Display information
+            String widthLabel = "Width: " + (int) width + " pixels";
+            String distanceLabel = "Distance: " + String.format("%.2f", getDistance()) + " inches";
+            Imgproc.putText(input, widthLabel, new Point(cX + 10, cY + 20), Imgproc.FONT_HERSHEY_SIMPLEX, 0.5, new Scalar(0, 255, 0), 2);
+            Imgproc.putText(input, distanceLabel, new Point(cX + 10, cY + 40), Imgproc.FONT_HERSHEY_SIMPLEX, 0.5, new Scalar(0, 255, 0), 2);
+        }
+
+        // Update frame count and latest processed frame
+        numberOfFramesProcessed++;
+        input.copyTo(latestMat);
+        return input;
+    }
+    public double getCenterX() {
+        return cX;
+    }
+
+    public double getCenterY() {
+        return cY;
     }
 
     private MatOfPoint findLargestContour(List<MatOfPoint> contours) {
@@ -88,22 +88,20 @@ public class DetectionR extends ColorDetectionPipeline {
 
         for (MatOfPoint contour : contours) {
             double area = Imgproc.contourArea(contour);
-            if (area > maxArea) {
+            if (area > MIN_CONTOUR_AREA && area > maxArea) {
                 maxArea = area;
                 largestContour = contour;
             }
         }
-
         return largestContour;
     }
 
-    private double calculateWidth(MatOfPoint contour) {
-        Rect boundingRect = Imgproc.boundingRect(contour);
-        return boundingRect.width;
+    public double getDistance() {
+        return (OBJECT_WIDTH_IN_REAL_WORLD_UNITS * FOCAL_LENGTH) / width;
     }
 
-    public static double getDistance(double width) {
-        return (objectWidthInRealWorldUnits * focalLength) / width;
+    public double getWidth() {
+        return width;
     }
 
     public Mat getLatestMat() {
