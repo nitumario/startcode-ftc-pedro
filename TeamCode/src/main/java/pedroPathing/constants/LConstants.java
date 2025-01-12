@@ -12,8 +12,8 @@ public class LConstants {
         ThreeWheelIMUConstants.leftY = 4.015748;
         ThreeWheelIMUConstants.rightY = -4.015748;
         ThreeWheelIMUConstants.strafeX = -6.2992125;
-        ThreeWheelIMUConstants.leftEncoder_HardwareMapName = "rightRear";
-        ThreeWheelIMUConstants.rightEncoder_HardwareMapName = "leftFront";
+        ThreeWheelIMUConstants.leftEncoder_HardwareMapName = "leftFront";
+        ThreeWheelIMUConstants.rightEncoder_HardwareMapName = "ododreapta";
         ThreeWheelIMUConstants.strafeEncoder_HardwareMapName = "rightFront";
         ThreeWheelIMUConstants.leftEncoderDirection = Encoder.REVERSE;
         ThreeWheelIMUConstants.rightEncoderDirection = Encoder.FORWARD;
