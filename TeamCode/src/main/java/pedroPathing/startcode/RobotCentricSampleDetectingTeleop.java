@@ -62,7 +62,10 @@ public class RobotCentricSampleDetectingTeleop extends OpMode {
     private boolean claw_state = false;
     private boolean specimen_state = false;
 
-
+    private int vertMin = 0;
+    private int vertMax = 3000;
+    private int orizMin = -10;
+    private int orizMax = 1000;
     // Add PID constants
     private double kP = 0.005; // Proportional gain
     private double kI = 0.0001; // Integral gain
@@ -142,11 +145,16 @@ public class RobotCentricSampleDetectingTeleop extends OpMode {
         // Default robot movement
         if (!gamepad1.square) {
             follower.setTeleOpMovementVectors(-gamepad1.left_stick_y, -gamepad1.left_stick_x, -gamepad1.right_stick_x, true);
-        } else {
+        }
+        if(gamepad1.right_bumper){
+            follower.setTeleOpMovementVectors(-gamepad1.left_stick_y/2, -gamepad1.left_stick_x/2, -gamepad1.right_stick_x/2, true);
+
+        }
+        if(gamepad1.square) {
             double centerX = detectionPipeline.getCenterX();
             double frameCenterX = 1280 / 2.0;
             double error = centerX - frameCenterX;
-            double kP = 0.00025;
+            double kP = 0.0005;
             double adjustment = kP * error;
             follower.setTeleOpMovementVectors(0, -adjustment, 0, true);
 
@@ -160,7 +168,7 @@ public class RobotCentricSampleDetectingTeleop extends OpMode {
         double vert_gamepad = gamepad2.left_stick_y;
         double manualPower = vert_gamepad * 4;
 
-        if (Math.abs(manualPower) > 0.1) {
+        if (Math.abs(manualPower) > 0.1 && motorVert1.getCurrentPosition() < vertMax && motorVert1.getCurrentPosition() > vertMin) {
             targetPosition += manualPower * 10;
         }
 
@@ -194,15 +202,21 @@ public class RobotCentricSampleDetectingTeleop extends OpMode {
         // Horizontal arm control
         motorOriz.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         double powerOriz = gamepad2.left_stick_x;
-        motorOriz.setPower(powerOriz);
-
+        if (gamepad2.left_stick_x > 0 && motorOriz.getCurrentPosition() < orizMax || gamepad2.left_stick_x < 0 && motorOriz.getCurrentPosition() > orizMin) {
+            motorOriz.setPower(powerOriz);
+        } else {
+            motorOriz.setPower(0);
+        }
+        telemetry.addData("horiz joystick", powerOriz);
+                telemetry.addData("horiz power", motorOriz.getPower());
+                telemetry.addData("horiz poz",motorOriz.getCurrentPosition());
         // Specimen control
         if (gamepad2.left_bumper && !specimen_state) {
 
-            specimen.setPosition(0.4);
+            specimen.setPosition(0.55);
             specimen_state = true;
         } else if (gamepad2.left_bumper && specimen_state){
-            specimen.setPosition(0.0);
+            specimen.setPosition(1.0);
             specimen_state = false;
         }
 
@@ -219,7 +233,7 @@ public class RobotCentricSampleDetectingTeleop extends OpMode {
         }
 
         double powerRotateClaw = gamepad2.right_stick_x;
-        clawRotate.setPower(powerRotateClaw/2);
+        clawRotate.setPower(powerRotateClaw/4);
 
         // Display detection data
         double centerX = detectionPipeline.getCenterX();
